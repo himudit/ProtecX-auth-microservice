@@ -1,10 +1,11 @@
 package routes
 
 import (
+	"authService/internal/controllers"
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoutes(router *gin.Engine, authController *controllers.authController) {
+func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) {
 	auth := router.Group("/auth")
 	{
 		auth.POST("/register", authController.Register)

@@ -4,24 +4,28 @@ import (
 	"log"
 
 	"authService/config"
+	"authService/internal/controllers"
+	ratelimiter "authService/internal/middlewares"
 	"authService/internal/routes"
-	"authService/internal/middlewares"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// Connect to Redis (global singleton)
+	// Connect Redis
 	config.ConnectRedis()
 
-	// Create Gin router instance
+	// Create Gin router
 	r := gin.Default()
 
-	// Apply global middleware (if you want)
+	// Global rate limiter middleware
 	r.Use(ratelimiter.RateLimiter(config.RDB))
 
+	// Initialize controller
+	authController := controllers.NewAuthController()
+
 	// Register routes
-	routes.AuthRoutes(r)
+	routes.AuthRoutes(r, authController)
 
 	log.Println("🚀 Server running on :8080")
 	r.Run(":8080")

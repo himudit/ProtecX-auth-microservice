@@ -8,4 +8,8 @@ func NewAuthController() *AuthController {
 	return &AuthController{}
 }
 
-func (ac *AuthController) Register(c *gin.Context) {}
+func (ac *AuthController) Register(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"message": "Signed up successfully",
+	})
+}
