@@ -27,7 +27,7 @@ func main() {
 
 	r.Use(ratelimiter.RateLimiter(config.RDB))
 
-	authController := controllers.NewAuthController()
+	authController := controllers.NewAuthController(config.RDB)
 
 	routes.AuthRoutes(r, authController)
 

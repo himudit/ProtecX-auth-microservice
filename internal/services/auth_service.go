@@ -9,6 +9,7 @@ import (
 	"authService/internal/models"
 	"authService/internal/utils"
 
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,6 +26,11 @@ type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Role     string `json:"role"` // optional
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func RegisterUser(req RegisterRequest) (*models.User, map[string]string, error) {
@@ -58,6 +64,35 @@ func RegisterUser(req RegisterRequest) (*models.User, map[string]string, error) 
 		return nil, nil, err
 	}
 
+	// 5️⃣ Generate JWT tokens (access + refresh)
+	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tokens := map[string]string{
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
+	}
+
+	return user, tokens, nil
+}
+
+func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]string, error) {
+	ctx := context.TODO()
+
+	// 1️⃣ Check if email already exists
+	existing := userCollection.FindOne(ctx, bson.M{"email": req.Email})
+	if existing.Err() == nil {
+		return nil, nil, errors.New("email already exists")
+	}
+
+	
 	// 5️⃣ Generate JWT tokens (access + refresh)
 	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion)
 	if err != nil {
