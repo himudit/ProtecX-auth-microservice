@@ -27,6 +27,11 @@ type RegisterRequest struct {
 	Role     string `json:"role" binding:"required"`
 }
 
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
 func (ac *AuthController) Register(c *gin.Context) {
 	var req RegisterRequest
 
@@ -59,7 +64,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 }
 
 func (ac *AuthController) Login(c *gin.Context) {
-	var req RegisterRequest
+	var req LoginRequest
 
 	// Bind incoming JSON
 	if err := c.ShouldBindJSON(&req); err != nil {
