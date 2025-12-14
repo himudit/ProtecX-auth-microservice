@@ -38,6 +38,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+type LogoutRequest struct {
+	AccessToken string `json:"accessToken"`
+}
+
 func (ac *AuthController) Register(c *gin.Context) {
 	var req RegisterRequest
 
@@ -146,5 +150,30 @@ func (ac *AuthController) AccessRefreshToken(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"accessToken":  newAccessToken,
 		"refreshToken": newRefreshToken,
+	})
+}
+
+func (ac *AuthController) Logout(c *gin.Context) {
+	var body LogoutRequest
+	if err := c.ShouldBindJSON(&body); err != nil || body.AccessToken == "" {
+		c.JSON(400, gin.H{"error": "accessToken required in body"})
+		return
+	}
+	accessToken := body.AccessToken
+
+	// 1. Validate access token
+	claims, err := utils.VerifyAccessToken(accessToken)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "Invalid access token"})
+		return
+	}
+	err = models.IncrementTokenVersion(claims.UserID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update tokenVersion"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "Logged out successfully",
 	})
 }
