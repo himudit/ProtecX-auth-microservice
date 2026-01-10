@@ -177,3 +177,9 @@ func (ac *AuthController) Logout(c *gin.Context) {
 		"message": "Logged out successfully",
 	})
 }
+
+func (ac *AuthController) Me(c *gin.Context) {
+	c.JSON(200, gin.H{
+		"message": "hello from 8080",
+	})
+}
