@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 var RDB *redis.Client
@@ -19,22 +18,17 @@ func ConnectRedis() {
 		panic("Error loading .env file")
 	}
 
-	host := os.Getenv("REDIS_HOST")
-	username := os.Getenv("REDIS_USERNAME")
-	password := os.Getenv("REDIS_PASSWORD")
-	dbStr := os.Getenv("REDIS_DB")
-
-	db, err := strconv.Atoi(dbStr)
-	if err != nil {
-		db = 0 // fallback
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		panic("REDIS_URL is not set")
 	}
 
-	RDB = redis.NewClient(&redis.Options{
-		Addr:     host,
-		Username: username,
-		Password: password,
-		DB:       db,
-	})
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		panic("Failed to parse REDIS_URL: " + err.Error())
+	}
+
+	RDB = redis.NewClient(opt)
 
 	// Test connection
 	_, err = RDB.Ping(context.Background()).Result()
@@ -42,5 +36,5 @@ func ConnectRedis() {
 		panic("Redis connection failed: " + err.Error())
 	}
 
-	fmt.Println("✅ Connected to Redis Cloud")
+	fmt.Println("✅ Connected to Upstash Redis")
 }
