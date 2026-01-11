@@ -5,18 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
 var RDB *redis.Client
 
 func ConnectRedis() {
-	// Load environment variables from .env
-	err := godotenv.Load()
-	if err != nil {
-		panic("Error loading .env file")
-	}
 
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
