@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+
+	"github.com/joho/godotenv"
 
 	"authService/config"
 	"authService/internal/controllers"
