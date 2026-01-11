@@ -10,14 +10,16 @@ import (
 	"authService/internal/routes"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Load environment variables from .env
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️ No .env file found, using system environment")
+	// Load environment variables from .env only in development
+	if os.Getenv("ENV") != "production" {
+		if err := godotenv.Load(); err != nil {
+			log.Println("⚠️ No .env file found, using system environment")
+		}
 	}
+
 	config.ConnectRedis()
 	config.ConnectMongo()
 	models.InitCollections()
