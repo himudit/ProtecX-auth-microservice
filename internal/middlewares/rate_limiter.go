@@ -65,7 +65,7 @@ func RateLimiter(rdb *redis.Client) gin.HandlerFunc {
 			"tokens":         data.Tokens,
 			"last_refill_ts": data.LastRefillTs,
 		})
-
+		rdb.Expire(ctx, key, 2*time.Minute)
 		c.Next()
 
 	}
