@@ -1,18 +1,26 @@
 package routes
 
 import (
+	"authService/config"
 	"authService/internal/controllers"
+	ratelimiter "authService/internal/middlewares"
 
 	"github.com/gin-gonic/gin"
 )
 
 func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) {
-	auth := router.Group("/auth")
+	limited := router.Group("/auth")
+	limited.Use(ratelimiter.RateLimiter(config.RDB))
 	{
-		auth.POST("/register", authController.Register)
-		auth.POST("/login", authController.Login)
-		auth.POST("/refresh", authController.AccessRefreshToken)
-		auth.POST("/logout", authController.Logout)		
-		auth.GET("/me", authController.Me)
+		limited.POST("/login", authController.Login)
+		limited.POST("/register", authController.Register)
+		limited.POST("/refresh", authController.AccessRefreshToken)
+	}
+
+	//  Non-rate-limited routes (cron / internal)
+	open := router.Group("/auth")
+	{
+		open.GET("/me", authController.Me)
+		open.POST("/logout", authController.Logout)
 	}
 }

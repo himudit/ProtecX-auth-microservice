@@ -8,7 +8,6 @@ import (
 
 	"authService/config"
 	"authService/internal/controllers"
-	ratelimiter "authService/internal/middlewares"
 	"authService/internal/models"
 	"authService/internal/routes"
 
@@ -30,7 +29,6 @@ func main() {
 
 	r := gin.Default()
 
-	r.Use(ratelimiter.RateLimiter(config.RDB))
 
 	authController := controllers.NewAuthController(config.RDB)
 
