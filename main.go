@@ -9,7 +9,9 @@ import (
 
 	"authService/config"
 	"authService/internal/controllers"
+	"authService/internal/repositories/postgres"
 	"authService/internal/routes"
+	"authService/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,13 +26,17 @@ func main() {
 	}
 
 	config.ConnectRedis()
-	config.New(ctx)
+	db := config.New(ctx)
 	// models.InitCollections()
 	config.LoadRSAKeys()
 
 	r := gin.Default()
 
-	authController := controllers.NewAuthController(config.RDB)
+	projectUserRepo := postgres.NewProjectUserRepository(db.Pool)
+
+	authService := services.NewAuthService(projectUserRepo)
+
+	authController := controllers.NewAuthController(config.RDB, authService)
 
 	routes.AuthRoutes(r, authController)
 

@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 
+	"authService/internal/middlewares"
 	"authService/internal/models"
 	"authService/internal/services"
 	"authService/internal/utils"
@@ -13,25 +14,32 @@ import (
 
 type AuthController struct {
 	redisClient *redis.Client
+	authService *services.AuthService
 }
 
-func NewAuthController(rdb *redis.Client) *AuthController {
+func NewAuthController(
+	rdb *redis.Client,
+	authService *services.AuthService,
+) *AuthController {
 	return &AuthController{
 		redisClient: rdb,
+		authService: authService,
 	}
 }
 
 // Register request payload
 type RegisterRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role" binding:"required"`
+	ProjectID string `json:"projectId" binding:"required,uuid"`
+	Name      string `json:"name" binding:"required"`
+	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required,min=6"`
+	Role      string `json:"role" binding:"required"`
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	ProjectID string `json:"projectId" binding:"required,uuid"`
+	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required,min=6"`
 }
 
 type RefreshRequest struct {
@@ -43,21 +51,22 @@ type LogoutRequest struct {
 }
 
 func (ac *AuthController) Register(c *gin.Context) {
-	var req RegisterRequest
+	ctx := c.Request.Context()
+	projectID := c.GetString(middlewares.ContextProjectID)
+	providerID := c.GetString(middlewares.ContextProviderID)
 
-	// Bind incoming JSON
+	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Call service layer
-	user, tokens, err := services.RegisterUser(services.RegisterRequest{
+	user, err := ac.authService.RegisterUser(ctx, services.RegisterRequest{
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: req.Password,
 		Role:     req.Role,
-	})
+	}, projectID, providerID)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -65,11 +74,16 @@ func (ac *AuthController) Register(c *gin.Context) {
 	}
 
 	// Return user info and JWT tokens
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message":      "Signed up successfully",
+	// 	"user":         user,
+	// 	"accessToken":  tokens["accessToken"],
+	// 	"refreshToken": tokens["refreshToken"],
+	// })
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Signed up successfully",
-		"user":         user,
-		"accessToken":  tokens["accessToken"],
-		"refreshToken": tokens["refreshToken"],
+		"message": "Signed up successfully",
+		"user":    user,
 	})
 }
 
