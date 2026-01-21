@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -8,7 +9,6 @@ import (
 
 	"authService/config"
 	"authService/internal/controllers"
-	"authService/internal/models"
 	"authService/internal/routes"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +16,7 @@ import (
 
 func main() {
 	// Load environment variables from .env only in development
+	ctx := context.Background()
 	if os.Getenv("ENV") != "production" {
 		if err := godotenv.Load(); err != nil {
 			log.Println("⚠️ No .env file found, using system environment")
@@ -23,12 +24,11 @@ func main() {
 	}
 
 	config.ConnectRedis()
-	config.ConnectMongo()
-	models.InitCollections()
+	config.New(ctx)
+	// models.InitCollections()
 	config.LoadRSAKeys()
 
 	r := gin.Default()
-
 
 	authController := controllers.NewAuthController(config.RDB)
 

@@ -1,4 +1,4 @@
-package ratelimiter
+package middlewares
 
 import (
 	"context"
@@ -20,13 +20,21 @@ type RateLimiterData struct {
 func RateLimiter(rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
+		projectID := c.GetString(ContextProjectID)
+		if projectID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "projectId missing"})
+			c.Abort()
+			return
+		}
+
 		ip := utils.GetIP(c.Request)
 		if ip == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to identify IP"})
 			c.Abort()
 			return
 		}
-		key := "rate_limit:" + ip
+
+		key := "rate_limit:" + projectID + ":" + ip
 		ctx := context.Background()
 
 		val, err := rdb.HGetAll(ctx, key).Result()
