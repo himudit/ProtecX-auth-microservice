@@ -27,8 +27,8 @@ func (r *projectUserRepo) ExistsByEmail(
 	err := r.db.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1
-			FROM project_users
-			WHERE project_id = $1 AND email = $2
+			FROM "ProjectUser"
+			WHERE projectId = $1 AND email = $2
 		)
 	`, projectID, email).Scan(&exists)
 
@@ -41,17 +41,17 @@ func (r *projectUserRepo) Create(
 ) error {
 
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO project_users (
+		INSERT INTO "ProjectUser" (
 			id,
-			project_id,
-			provider_id,
-			name,
-			email,
-			password,
-			role,
-			token_version,
-			is_verified,
-			created_at
+			"projectId",
+			"providerId",
+			"name",
+			"email",
+			"password",
+			"role",
+			"tokenVersion",
+			"isVerified",
+			"createdAt"
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
 		)

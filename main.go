@@ -33,8 +33,9 @@ func main() {
 	r := gin.Default()
 
 	projectUserRepo := postgres.NewProjectUserRepository(db.Pool)
+	projectJWTRepo := postgres.NewProjectJwtKeyRepository(db.Pool)
 
-	authService := services.NewAuthService(projectUserRepo)
+	authService := services.NewAuthService(projectUserRepo, projectJWTRepo)
 
 	authController := controllers.NewAuthController(config.RDB, authService)
 

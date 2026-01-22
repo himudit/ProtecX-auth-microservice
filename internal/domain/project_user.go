@@ -2,14 +2,6 @@ package domain
 
 import "time"
 
-type ProjectRole string
-
-const (
-	Owner  ProjectRole = "OWNER"
-	Admin  ProjectRole = "ADMIN"
-	Member ProjectRole = "MEMBER"
-)
-
 type ProjectUser struct {
 	ID         string
 	ProjectID  string
@@ -18,7 +10,7 @@ type ProjectUser struct {
 	Name         string
 	Email        string
 	PasswordHash string
-	Role         ProjectRole
+	Role         string
 	IsVerified   bool
 	TokenVersion int
 
