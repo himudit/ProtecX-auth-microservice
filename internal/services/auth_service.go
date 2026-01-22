@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,13 +51,13 @@ func (s *AuthService) RegisterUser(
 ) (*domain.ProjectUser, map[string]string, error) {
 
 	// 1️⃣ Check if email already exists
-	// exists, err := s.projectUserRepo.ExistsByEmail(ctx, projectID, req.Email)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-	// if exists {
-	// 	return nil, nil, errors.New("email already exists in this project")
-	// }
+	exists, err := s.projectUserRepo.ExistsByEmail(ctx, projectID, req.Email)
+	if err != nil {
+		return nil, nil, err
+	}
+	if exists {
+		return nil, nil, errors.New("email already exists in this project")
+	}
 
 	// 2️⃣ Hash password using Argon2id from utils/password.go
 	hashedPwd, err := utils.HashPassword(req.Password)
@@ -83,8 +84,13 @@ func (s *AuthService) RegisterUser(
 		return nil, nil, err
 	}
 
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// 5️⃣ Generate JWT tokens (access + refresh)
-	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, keyRow.PrivateKeyEncrypted)
 	if err != nil {
 		return nil, nil, err
 	}

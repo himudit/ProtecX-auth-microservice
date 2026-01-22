@@ -21,9 +21,9 @@ func (r *projectJwtKeyRepo) GetActiveKeyByProjectID(ctx context.Context, project
 	var key domain.ProjectJwtKey
 	err := r.db.QueryRow(ctx, `
 		SELECT 
-			id, project_id, kid, public_key, private_key_encrypted, algorithm, is_active, created_at
-		FROM project_jwt_keys
-		WHERE project_id = $1 AND is_active = true
+			id, "projectId", kid, "publicKey", "privateKeyEncrypted", algorithm, "isActive", "createdAt"
+		FROM "projectJwtKeys"
+		WHERE "projectId" = $1 AND "isActive" = true
 		LIMIT 1
 	`, projectID).Scan(
 		&key.ID,

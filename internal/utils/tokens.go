@@ -2,6 +2,9 @@ package utils
 
 import (
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -20,7 +23,18 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userId, email, role string, tokenVersion int, privateKey *rsa.PrivateKey) (string, error) {
+func GenerateAccessToken(userId, email, role string, tokenVersion int, privateKeyPEM string) (string, error) {
+	// 🔹 Convert PEM string → *rsa.PrivateKey
+	block, _ := pem.Decode([]byte(privateKeyPEM))
+	if block == nil {
+		return "", errors.New("invalid private key PEM")
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+
 	claims := &JWTClaims{
 		UserID:       userId,
 		Email:        email,
