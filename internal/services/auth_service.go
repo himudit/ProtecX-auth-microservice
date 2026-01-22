@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
@@ -95,7 +94,7 @@ func (s *AuthService) RegisterUser(
 		return nil, nil, err
 	}
 
-	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, &rsa.PrivateKey{})
+	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, keyRow.PrivateKeyEncrypted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,20 +136,20 @@ func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]st
 
 	utils.ResetBackoff(req.Email, rdb)
 
-	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
+	// accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
 
-	if err != nil {
-		return nil, nil, err
-	}
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
 
-	refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion, &rsa.PrivateKey{})
-	if err != nil {
-		return nil, nil, err
-	}
+	// refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion, &rsa.PrivateKey{})
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
 
 	tokens := map[string]string{
-		"accessToken":  accessToken,
-		"refreshToken": refreshToken,
+		"accessToken":  "accessToken",
+		"refreshToken": "refreshToken",
 	}
 
 	return user, tokens, nil

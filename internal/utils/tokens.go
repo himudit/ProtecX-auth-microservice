@@ -30,7 +30,7 @@ func GenerateAccessToken(userId, email, role string, tokenVersion int, privateKe
 		return "", errors.New("invalid private key PEM")
 	}
 
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +51,17 @@ func GenerateAccessToken(userId, email, role string, tokenVersion int, privateKe
 	return token.SignedString(privateKey)
 }
 
-func GenerateRefreshToken(userId string, tokenVersion int, privateKey *rsa.PrivateKey) (string, error) {
+func GenerateRefreshToken(userId string, tokenVersion int, privateKeyPEM string) (string, error) {
+	// 🔹 Convert PEM string → *rsa.PrivateKey
+	block, _ := pem.Decode([]byte(privateKeyPEM))
+	if block == nil {
+		return "", errors.New("invalid private key PEM")
+	}
+
+	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
 	claims := JWTClaims{
 		UserID:       userId,
 		TokenVersion: tokenVersion,

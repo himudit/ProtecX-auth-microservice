@@ -28,7 +28,7 @@ func (r *projectUserRepo) ExistsByEmail(
 		SELECT EXISTS (
 			SELECT 1
 			FROM "ProjectUser"
-			WHERE projectId = $1 AND email = $2
+			WHERE "projectId" = $1 AND "email" = $2
 		)
 	`, projectID, email).Scan(&exists)
 
