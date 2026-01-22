@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"errors"
+	"crypto/rsa"
 	"fmt"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 
 type AuthService struct {
 	projectUserRepo repositories.ProjectUserRepository
+	jwtKeyRepo      repositories.ProjectJwtKeyRepository
 }
 
 type RegisterRequest struct {
@@ -31,8 +32,14 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-func NewAuthService(repo repositories.ProjectUserRepository) *AuthService {
-	return &AuthService{projectUserRepo: repo}
+func NewAuthService(
+	userRepo repositories.ProjectUserRepository,
+	jwtKeyRepo repositories.ProjectJwtKeyRepository,
+) *AuthService {
+	return &AuthService{
+		projectUserRepo: userRepo,
+		jwtKeyRepo:      jwtKeyRepo,
+	}
 }
 
 func (s *AuthService) RegisterUser(
@@ -40,21 +47,21 @@ func (s *AuthService) RegisterUser(
 	req RegisterRequest,
 	projectID string,
 	providerID string,
-) (*domain.ProjectUser, error) {
+) (*domain.ProjectUser, map[string]string, error) {
 
 	// 1️⃣ Check if email already exists
-	exists, err := s.projectUserRepo.ExistsByEmail(ctx, projectID, req.Email)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, errors.New("email already exists in this project")
-	}
+	// exists, err := s.projectUserRepo.ExistsByEmail(ctx, projectID, req.Email)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	// if exists {
+	// 	return nil, nil, errors.New("email already exists in this project")
+	// }
 
 	// 2️⃣ Hash password using Argon2id from utils/password.go
 	hashedPwd, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 3️⃣ Create user object
@@ -65,7 +72,7 @@ func (s *AuthService) RegisterUser(
 		Name:         req.Name,
 		Email:        req.Email,
 		PasswordHash: hashedPwd,
-		Role:         domain.ProjectRole(req.Role),
+		Role:         req.Role,
 		TokenVersion: 0,     // initial token version
 		IsVerified:   false, // default
 		CreatedAt:    time.Now(),
@@ -73,26 +80,26 @@ func (s *AuthService) RegisterUser(
 
 	// 4️⃣ Persist to PostgreSQL
 	if err := s.projectUserRepo.Create(ctx, user); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 5️⃣ Generate JWT tokens (access + refresh)
-	// accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
+	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, &rsa.PrivateKey{})
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// tokens := map[string]string{
-	// 	"accessToken":  accessToken,
-	// 	"refreshToken": refreshToken,
-	// }
+	tokens := map[string]string{
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
+	}
 
-	return user, nil
+	return user, tokens, nil
 }
 
 func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]string, error) {
@@ -124,13 +131,13 @@ func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]st
 
 	utils.ResetBackoff(req.Email, rdb)
 
-	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion)
+	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion)
+	refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion, &rsa.PrivateKey{})
 	if err != nil {
 		return nil, nil, err
 	}

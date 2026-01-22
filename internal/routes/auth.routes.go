@@ -14,7 +14,7 @@ func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) 
 	{
 		limited.POST("/login", authController.Login)
 		limited.POST("/register", authController.Register)
-		limited.POST("/refresh", authController.AccessRefreshToken)
+		// limited.POST("/refresh", authController.AccessRefreshToken)
 	}
 
 	//  Non-rate-limited routes (cron / internal)
@@ -22,6 +22,6 @@ func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) 
 	open.Use(middlewares.ProjectContext())
 	{
 		open.GET("/me", authController.Me)
-		open.POST("/logout", authController.Logout)
+		// open.POST("/logout", authController.Logout)
 	}
 }

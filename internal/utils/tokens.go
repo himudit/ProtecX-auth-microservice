@@ -1,9 +1,8 @@
 package utils
 
 import (
+	"crypto/rsa"
 	"time"
-
-	"authService/config"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -21,7 +20,7 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userId, email, role string, tokenVersion int) (string, error) {
+func GenerateAccessToken(userId, email, role string, tokenVersion int, privateKey *rsa.PrivateKey) (string, error) {
 	claims := &JWTClaims{
 		UserID:       userId,
 		Email:        email,
@@ -35,10 +34,10 @@ func GenerateAccessToken(userId, email, role string, tokenVersion int) (string, 
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(config.PrivateKey)
+	return token.SignedString(privateKey)
 }
 
-func GenerateRefreshToken(userId string, tokenVersion int) (string, error) {
+func GenerateRefreshToken(userId string, tokenVersion int, privateKey *rsa.PrivateKey) (string, error) {
 	claims := JWTClaims{
 		UserID:       userId,
 		TokenVersion: tokenVersion,
@@ -50,15 +49,15 @@ func GenerateRefreshToken(userId string, tokenVersion int) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(config.PrivateKey)
+	return token.SignedString(privateKey)
 }
 
-func VerifyAccessToken(tokenString string) (*JWTClaims, error) {
+func VerifyAccessToken(tokenString string, publicKey *rsa.PublicKey) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
 		&JWTClaims{},
 		func(t *jwt.Token) (interface{}, error) {
-			return config.PublicKey, nil
+			return publicKey, nil
 		},
 	)
 	if err != nil {
@@ -73,12 +72,12 @@ func VerifyAccessToken(tokenString string) (*JWTClaims, error) {
 	return claims, nil
 }
 
-func VerifyRefreshToken(tokenString string) (*JWTClaims, error) {
+func VerifyRefreshToken(tokenString string, publicKey *rsa.PublicKey) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
 		&JWTClaims{},
 		func(t *jwt.Token) (interface{}, error) {
-			return config.PublicKey, nil
+			return publicKey, nil
 		},
 	)
 
@@ -92,4 +91,14 @@ func VerifyRefreshToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	return claims, nil
+}
+
+// ParseRSAPrivateKeyFromPEM parses a PEM encoded RSA private key.
+func ParseRSAPrivateKeyFromPEM(keyPEM string) (*rsa.PrivateKey, error) {
+	return jwt.ParseRSAPrivateKeyFromPEM([]byte(keyPEM))
+}
+
+// ParseRSAPublicKeyFromPEM parses a PEM encoded RSA public key.
+func ParseRSAPublicKeyFromPEM(keyPEM string) (*rsa.PublicKey, error) {
+	return jwt.ParseRSAPublicKeyFromPEM([]byte(keyPEM))
 }
