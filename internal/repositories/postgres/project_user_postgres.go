@@ -78,15 +78,32 @@ func (r *projectUserRepo) GetUserByEmail(
 
 	user := &domain.ProjectUser{}
 	err := r.db.QueryRow(ctx, `
-        SELECT "id", "projectId", "email", "password", "role"
+        SELECT 
+		"id", 
+		"projectId",
+		"providerId",
+		"name",
+		"email",
+		"password",
+		"role",
+		"tokenVersion",
+		"isVerified",
+		"createdAt",
+		"lastLoginAt"
         FROM "ProjectUser"
         WHERE "projectId" = $1 AND "email" = $2
     `, projectID, email).Scan(
 		&user.ID,
 		&user.ProjectID,
+		&user.ProviderID,
+		&user.Name,
 		&user.Email,
 		&user.PasswordHash,
 		&user.Role,
+		&user.TokenVersion,
+		&user.IsVerified,
+		&user.CreatedAt,
+		&user.LastLoginAt,
 	)
 
 	if err != nil {

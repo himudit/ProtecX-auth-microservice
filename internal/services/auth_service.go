@@ -110,7 +110,7 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 	projectID string,
 	providerID string, rdb *redis.Client) (*domain.ProjectUser, map[string]string, error) {
 
-	status, remainingTime, err := utils.CheckBackoff(req.Email, rdb)
+	status, remainingTime, err := utils.CheckBackoff(projectID, req.Email, rdb)
 
 	if err != nil {
 		return nil, nil, err
@@ -122,6 +122,11 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 
 	user, err := s.projectUserRepo.GetUserByEmail(ctx, projectID, req.Email)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if user == nil {
+		_ = utils.UpdateBackoff(projectID, req.Email, rdb)
 		return nil, nil, fmt.Errorf("invalid email or password")
 	}
 
@@ -131,11 +136,11 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 	}
 
 	if !valid {
-		utils.UpdateBackoff(req.Email, rdb)
+		utils.UpdateBackoff(projectID, req.Email, rdb)
 		return nil, nil, fmt.Errorf("invalid email or password")
 	}
 
-	utils.ResetBackoff(req.Email, rdb)
+	utils.ResetBackoff(projectID, req.Email, rdb)
 
 	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
 	if err != nil {

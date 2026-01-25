@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"time"
 
@@ -14,9 +15,11 @@ type ExponentialBackoffData struct {
 	NextAllowed int64 `json:"nextAllowed"`
 }
 
-func CheckBackoff(email string, rdb *redis.Client) (status string, remainingTime string, err error) {
+func CheckBackoff(projectID, email string, rdb *redis.Client) (status string, remainingTime string, err error) {
 	ctx := context.TODO()
-	key := "backoff:" + email
+
+	key := fmt.Sprintf("backoff:%s:%s", projectID, email)
+
 	val, err := rdb.Get(ctx, key).Result()
 
 	if err == redis.Nil {
@@ -44,26 +47,27 @@ func formatDuration(seconds int64) string {
 	return time.Duration(seconds * int64(time.Second)).String()
 }
 
-func UpdateBackoff(email string, rdb *redis.Client) error {
+func UpdateBackoff(projectID, email string, rdb *redis.Client) error {
 	ctx := context.TODO()
-	key := "backoff:" + email
+
+	key := fmt.Sprintf("backoff:%s:%s", projectID, email)
+
 	val, err := rdb.Get(ctx, key).Result()
 
 	var data ExponentialBackoffData
 	if err == redis.Nil || val == "" {
 		data = ExponentialBackoffData{
 			FailCount:   1,
-			NextAllowed: time.Now().Unix() + 1, // base delay 30 seconds
+			NextAllowed: time.Now().Unix() + 1,
 		}
 	} else {
 		if err := json.Unmarshal([]byte(val), &data); err != nil {
 			return err
 		}
-		data.FailCount++
-		baseDelay := 1 // seconds
-		delay := float64(baseDelay) * math.Pow(2, float64(data.FailCount-1))
 
-		// 6️⃣ Update next allowed time
+		data.FailCount++
+		baseDelay := 1
+		delay := float64(baseDelay) * math.Pow(2, float64(data.FailCount-1))
 		data.NextAllowed = time.Now().Unix() + int64(delay)
 	}
 
@@ -71,10 +75,12 @@ func UpdateBackoff(email string, rdb *redis.Client) error {
 	if err != nil {
 		return err
 	}
+
 	ttl := 15 * time.Minute
 	return rdb.Set(ctx, key, jsonData, ttl).Err()
 }
 
-func ResetBackoff(email string, rdb *redis.Client) {
-	rdb.Del(context.TODO(), "backoff:"+email)
+func ResetBackoff(projectID, email string, rdb *redis.Client) {
+	key := fmt.Sprintf("backoff:%s:%s", projectID, email)
+	rdb.Del(context.TODO(), key)
 }
