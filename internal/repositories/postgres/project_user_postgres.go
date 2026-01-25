@@ -78,13 +78,14 @@ func (r *projectUserRepo) GetUserByEmail(
 
 	user := &domain.ProjectUser{}
 	err := r.db.QueryRow(ctx, `
-        SELECT "id", "projectId", "email", "role"
+        SELECT "id", "projectId", "email", "password", "role"
         FROM "ProjectUser"
         WHERE "projectId" = $1 AND "email" = $2
     `, projectID, email).Scan(
 		&user.ID,
 		&user.ProjectID,
 		&user.Email,
+		&user.PasswordHash,
 		&user.Role,
 	)
 
