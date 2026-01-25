@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"authService/internal/domain"
-	"authService/internal/models"
 	"authService/internal/repositories"
 	"authService/internal/utils"
 
@@ -107,7 +106,9 @@ func (s *AuthService) RegisterUser(
 	return user, tokens, nil
 }
 
-func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]string, error) {
+func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
+	projectID string,
+	providerID string, rdb *redis.Client) (*domain.ProjectUser, map[string]string, error) {
 
 	status, remainingTime, err := utils.CheckBackoff(req.Email, rdb)
 
@@ -119,12 +120,12 @@ func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]st
 		return nil, nil, fmt.Errorf("too many login attempts, try again in %s", remainingTime)
 	}
 
-	user, err := models.GetUserByEmail(req.Email)
+	user, err := s.projectUserRepo.GetUserByEmail(ctx, projectID, req.Email)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid email or password")
 	}
 
-	valid, err := utils.VerifyPassword(user.Password, req.Password)
+	valid, err := utils.VerifyPassword(user.PasswordHash, req.Password)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,20 +137,25 @@ func LoginUser(req LoginRequest, rdb *redis.Client) (*models.User, map[string]st
 
 	utils.ResetBackoff(req.Email, rdb)
 
-	// accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), user.Email, user.Role, user.TokenVersion, &rsa.PrivateKey{})
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, keyRow.PrivateKeyEncrypted)
 
-	// refreshToken, err := utils.GenerateRefreshToken(user.ID.Hex(), user.TokenVersion, &rsa.PrivateKey{})
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	tokens := map[string]string{
-		"accessToken":  "accessToken",
-		"refreshToken": "refreshToken",
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
 	}
 
 	return user, tokens, nil

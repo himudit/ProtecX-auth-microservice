@@ -7,6 +7,7 @@ import (
 	"authService/internal/domain"
 	"authService/internal/repositories"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -68,4 +69,31 @@ func (r *projectUserRepo) Create(
 	)
 
 	return err
+}
+
+func (r *projectUserRepo) GetUserByEmail(
+	ctx context.Context,
+	projectID, email string,
+) (*domain.ProjectUser, error) {
+
+	user := &domain.ProjectUser{}
+	err := r.db.QueryRow(ctx, `
+        SELECT "id", "projectId", "email", "role"
+        FROM "ProjectUser"
+        WHERE "projectId" = $1 AND "email" = $2
+    `, projectID, email).Scan(
+		&user.ID,
+		&user.ProjectID,
+		&user.Email,
+		&user.Role,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows { // if using pgx
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return user, nil
 }

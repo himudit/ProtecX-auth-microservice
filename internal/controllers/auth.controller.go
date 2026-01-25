@@ -81,19 +81,21 @@ func (ac *AuthController) Register(c *gin.Context) {
 }
 
 func (ac *AuthController) Login(c *gin.Context) {
-	var req LoginRequest
+	ctx := c.Request.Context()
+	projectID := c.GetString(middlewares.ContextProjectID)
+	providerID := c.GetString(middlewares.ContextProviderID)
 
-	// Bind incoming JSON
+	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Call service layer
-	user, tokens, err := services.LoginUser(services.LoginRequest{
+	user, tokens, err := ac.authService.LoginUser(ctx, services.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
-	}, ac.redisClient)
+	}, projectID, providerID, ac.redisClient)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
