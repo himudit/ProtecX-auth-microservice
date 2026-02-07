@@ -86,14 +86,17 @@ func (s *AuthService) RegisterUser(
 	if err != nil {
 		return nil, nil, err
 	}
-
+	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, nil, err
+	}
 	// 5️⃣ Generate JWT tokens (access + refresh)
-	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, privateKeyPEM)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, privateKeyPEM)
 	if err != nil {
 		return nil, nil, err
 	}
