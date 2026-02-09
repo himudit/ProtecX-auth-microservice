@@ -10,7 +10,7 @@ type ProjectUser struct {
 	Name         string
 	Email        string
 	PasswordHash string
-	Role         string
+	Role         ProjectRole
 	IsVerified   bool
 	TokenVersion int
 

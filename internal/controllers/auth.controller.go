@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 
+	"authService/internal/domain"
 	"authService/internal/middlewares"
 	"authService/internal/services"
 
@@ -30,7 +31,7 @@ type RegisterRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role" binding:"required"`
+	Role     string `json:"role"`
 }
 
 type LoginRequest struct {
@@ -61,7 +62,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: req.Password,
-		Role:     req.Role,
+		Role:     domain.ProjectRole(req.Role),
 	}, projectID, providerID)
 
 	if err != nil {

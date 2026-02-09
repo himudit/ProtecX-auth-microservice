@@ -20,10 +20,10 @@ type AuthService struct {
 }
 
 type RegisterRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"` // optional
+	Name     string             `json:"name"`
+	Email    string             `json:"email"`
+	Password string             `json:"password"`
+	Role     domain.ProjectRole `json:"role"` // optional
 }
 
 type LoginRequest struct {
@@ -63,6 +63,11 @@ func (s *AuthService) RegisterUser(
 		return nil, nil, err
 	}
 
+	// Default role logic
+	if req.Role == "" {
+		req.Role = domain.RoleMember
+	}
+
 	// 3️⃣ Create user object
 	user := &domain.ProjectUser{
 		ID:           uuid.NewString(), // unique ID for ProjectUser
@@ -91,7 +96,7 @@ func (s *AuthService) RegisterUser(
 		return nil, nil, err
 	}
 	// 5️⃣ Generate JWT tokens (access + refresh)
-	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, privateKeyPEM)
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, string(user.Role), user.TokenVersion, privateKeyPEM)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +155,7 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 		return nil, nil, err
 	}
 
-	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, user.Role, user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, string(user.Role), user.TokenVersion, keyRow.PrivateKeyEncrypted)
 
 	if err != nil {
 		return nil, nil, err
