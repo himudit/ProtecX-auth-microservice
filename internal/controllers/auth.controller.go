@@ -6,6 +6,7 @@ import (
 	"authService/internal/domain"
 	"authService/internal/middlewares"
 	"authService/internal/services"
+	"authService/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -54,7 +55,18 @@ func (ac *AuthController) Register(c *gin.Context) {
 
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+		if errs := utils.ValidationErrors(err); errs != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"errors": errs,
+			})
+			return
+		}
+
+		// non-validation error (bad JSON, wrong types, etc.)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
 		return
 	}
 
@@ -85,9 +97,25 @@ func (ac *AuthController) Login(c *gin.Context) {
 	projectID := c.GetString(middlewares.ContextProjectID)
 	providerID := c.GetString(middlewares.ContextProviderID)
 
+	// var req LoginRequest
+	// if err := c.ShouldBindJSON(&req); err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 	return
+	// }
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+		if errs := utils.ValidationErrors(err); errs != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"errors": errs,
+			})
+			return
+		}
+
+		// non-validation error (bad JSON, wrong types, etc.)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
 		return
 	}
 
