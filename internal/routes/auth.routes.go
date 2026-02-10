@@ -9,7 +9,7 @@ import (
 )
 
 func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) {
-	limited := router.Group("/auth")
+	limited := router.Group("/iam")
 	limited.Use(middlewares.ProjectContext(), middlewares.RateLimiter(config.RDB))
 	{
 		limited.POST("/login", authController.Login)
@@ -18,7 +18,7 @@ func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) 
 	}
 
 	//  Non-rate-limited routes (cron / internal)
-	open := router.Group("/auth")
+	open := router.Group("/iam")
 	open.Use(middlewares.ProjectContext())
 	{
 		open.GET("/me", authController.Me)
