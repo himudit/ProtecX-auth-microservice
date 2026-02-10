@@ -154,14 +154,18 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 	if err != nil {
 		return nil, nil, err
 	}
+	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, string(user.Role), user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, string(user.Role), user.TokenVersion, privateKeyPEM)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, keyRow.PrivateKeyEncrypted)
+	refreshToken, err := utils.GenerateRefreshToken(user.ID, user.TokenVersion, privateKeyPEM)
 	if err != nil {
 		return nil, nil, err
 	}
