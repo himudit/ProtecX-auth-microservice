@@ -115,3 +115,56 @@ func (r *projectUserRepo) GetUserByEmail(
 
 	return user, nil
 }
+func (r *projectUserRepo) GetUserByID(
+	ctx context.Context,
+	projectID, userID string,
+) (*domain.ProjectUser, error) {
+
+	user := &domain.ProjectUser{}
+	err := r.db.QueryRow(ctx, `
+        SELECT 
+		"id", 
+		"projectId",
+		"providerId",
+		"name",
+		"email",
+		"password",
+		"role",
+		"tokenVersion",
+		"isVerified",
+		"createdAt",
+		"lastLoginAt"
+        FROM "ProjectUser"
+        WHERE "projectId" = $1 AND "id" = $2
+    `, projectID, userID).Scan(
+		&user.ID,
+		&user.ProjectID,
+		&user.ProviderID,
+		&user.Name,
+		&user.Email,
+		&user.PasswordHash,
+		&user.Role,
+		&user.TokenVersion,
+		&user.IsVerified,
+		&user.CreatedAt,
+		&user.LastLoginAt,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (r *projectUserRepo) IncrementTokenVersion(ctx context.Context, projectID, userID string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE "ProjectUser"
+		SET "tokenVersion" = "tokenVersion" + 1
+		WHERE "projectId" = $1 AND "id" = $2
+	`, projectID, userID)
+	return err
+}

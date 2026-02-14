@@ -177,3 +177,89 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 
 	return user, tokens, nil
 }
+
+func (s *AuthService) RefreshToken(ctx context.Context, projectID string, refreshToken string) (map[string]string, error) {
+	// 1. Get active key for project
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Parse public key
+	publicKey, err := utils.ParseRSAPublicKeyFromPEM(keyRow.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Verify refresh token
+	claims, err := utils.VerifyRefreshToken(refreshToken, publicKey)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	// 4. Get user
+	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// 5. Check token version
+	if claims.TokenVersion != user.TokenVersion {
+		return nil, errors.New("refresh token expired or revoked")
+	}
+
+	// 6. Increment token version in DB
+	err = s.projectUserRepo.IncrementTokenVersion(ctx, projectID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	newTokenVersion := user.TokenVersion + 1
+
+	// 7. Decrypt private key for signing new tokens
+	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, err
+	}
+
+	// 8. Generate new tokens
+	newAccessToken, err := utils.GenerateAccessToken(user.ID, user.Email, string(user.Role), newTokenVersion, privateKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	newRefreshToken, err := utils.GenerateRefreshToken(user.ID, newTokenVersion, privateKeyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		"accessToken":  newAccessToken,
+		"refreshToken": newRefreshToken,
+	}, nil
+}
+
+func (s *AuthService) LogoutUser(ctx context.Context, projectID string, accessToken string) error {
+	// 1. Get active key for project
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Parse public key
+	publicKey, err := utils.ParseRSAPublicKeyFromPEM(keyRow.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	// 3. Verify access token
+	claims, err := utils.VerifyAccessToken(accessToken, publicKey)
+	if err != nil {
+		return errors.New("invalid access token")
+	}
+
+	// 4. Increment token version to invalidate all current tokens
+	return s.projectUserRepo.IncrementTokenVersion(ctx, projectID, claims.UserID)
+}
