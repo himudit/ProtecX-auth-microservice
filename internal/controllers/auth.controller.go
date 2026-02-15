@@ -74,7 +74,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: req.Password,
-		Role:     domain.ProjectRole(req.Role),
+		Role:     domain.RoleMember,
 	}, projectID, providerID)
 
 	if err != nil {
