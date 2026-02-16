@@ -12,4 +12,5 @@ type ProjectUserRepository interface {
 	GetUserByEmail(ctx context.Context, projectID, email string) (*domain.ProjectUser, error)
 	GetUserByID(ctx context.Context, projectID, userID string) (*domain.ProjectUser, error)
 	IncrementTokenVersion(ctx context.Context, projectID, userID string) error
+	UpdateLastLoginAt(ctx context.Context, projectID, userID string) error
 }

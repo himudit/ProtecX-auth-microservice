@@ -52,9 +52,10 @@ func (r *projectUserRepo) Create(
 			"role",
 			"tokenVersion",
 			"isVerified",
-			"createdAt"
+			"createdAt",
+			"lastLoginAt"
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW()
 		)
 	`,
 		user.ID,
@@ -164,6 +165,15 @@ func (r *projectUserRepo) IncrementTokenVersion(ctx context.Context, projectID, 
 	_, err := r.db.Exec(ctx, `
 		UPDATE "ProjectUser"
 		SET "tokenVersion" = "tokenVersion" + 1
+		WHERE "projectId" = $1 AND "id" = $2
+	`, projectID, userID)
+	return err
+}
+
+func (r *projectUserRepo) UpdateLastLoginAt(ctx context.Context, projectID, userID string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE "ProjectUser"
+		SET "lastLoginAt" = NOW()
 		WHERE "projectId" = $1 AND "id" = $2
 	`, projectID, userID)
 	return err

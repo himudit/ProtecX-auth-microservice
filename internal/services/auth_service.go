@@ -69,6 +69,7 @@ func (s *AuthService) RegisterUser(
 	}
 
 	// 3️⃣ Create user object
+	now := time.Now()
 	user := &domain.ProjectUser{
 		ID:           uuid.NewString(), // unique ID for ProjectUser
 		ProjectID:    projectID,        // tenant isolation
@@ -79,7 +80,8 @@ func (s *AuthService) RegisterUser(
 		Role:         req.Role,
 		TokenVersion: 0,     // initial token version
 		IsVerified:   false, // default
-		CreatedAt:    time.Now(),
+		CreatedAt:    now,
+		LastLoginAt:  &now,
 	}
 
 	// 4️⃣ Persist to PostgreSQL
@@ -174,6 +176,12 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 	}
+
+	if err := s.projectUserRepo.UpdateLastLoginAt(ctx, projectID, user.ID); err != nil {
+		return nil, nil, err
+	}
+	now := time.Now()
+	user.LastLoginAt = &now
 
 	return user, tokens, nil
 }
