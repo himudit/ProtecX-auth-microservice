@@ -24,4 +24,9 @@ func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) 
 		open.GET("/me", authController.Me)
 		open.POST("/logout", authController.Logout)
 	}
+
+	ping := router.Group("/ping")
+	ping.GET("", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "pong"})
+	})
 }
