@@ -39,7 +39,7 @@ func main() {
 
 	authController := controllers.NewAuthController(config.RDB, authService)
 
-	routes.AuthRoutes(r, authController)
+	routes.AuthRoutes(r, authController, projectJWTRepo)
 
 	log.Println("🚀 Server running on :8080")
 	r.Run(":8080")

@@ -249,25 +249,35 @@ func (s *AuthService) RefreshToken(ctx context.Context, projectID string, refres
 	}, nil
 }
 
-func (s *AuthService) LogoutUser(ctx context.Context, projectID string, accessToken string) error {
-	// 1. Get active key for project
-	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+func (s *AuthService) LogoutUser(ctx context.Context, projectID string, userID string, tokenVersion int) error {
+	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, userID)
 	if err != nil {
 		return err
 	}
-
-	// 2. Parse public key
-	publicKey, err := utils.ParseRSAPublicKeyFromPEM(keyRow.PublicKey)
-	if err != nil {
-		return err
+	if user == nil {
+		return errors.New("user not found")
 	}
 
-	// 3. Verify access token
-	claims, err := utils.VerifyAccessToken(accessToken, publicKey)
-	if err != nil {
-		return errors.New("invalid access token")
+	if user.TokenVersion != tokenVersion {
+		return nil
 	}
 
-	// 4. Increment token version to invalidate all current tokens
-	return s.projectUserRepo.IncrementTokenVersion(ctx, projectID, claims.UserID)
+	// Increment token version to invalidate all current tokens
+	return s.projectUserRepo.IncrementTokenVersion(ctx, projectID, userID)
+}
+
+func (s *AuthService) GetUserProfile(ctx context.Context, projectID string, userID string, tokenVersion int) (*domain.ProjectUser, error) {
+	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	if user.TokenVersion != tokenVersion {
+		return nil, errors.New("token expired or revoked")
+	}
+
+	return user, nil
 }
