@@ -5,10 +5,12 @@ import (
 	"authService/internal/controllers"
 	middlewares "authService/internal/middlewares"
 
+	"authService/internal/repositories"
+
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) {
+func AuthRoutes(router *gin.Engine, authController *controllers.AuthController, jwtKeyRepo repositories.ProjectJwtKeyRepository) {
 	limited := router.Group("/iam")
 	limited.Use(middlewares.ProjectContext(), middlewares.RateLimiter(config.RDB))
 	{
@@ -17,14 +19,14 @@ func AuthRoutes(router *gin.Engine, authController *controllers.AuthController) 
 		limited.POST("/refresh", authController.AccessRefreshToken)
 	}
 
-	//  Non-rate-limited routes (cron / internal)
-	open := router.Group("/iam")
-	open.Use(middlewares.ProjectContext())
+	auth := router.Group("/iam")
+	auth.Use(middlewares.ProjectContext(), middlewares.AuthMiddleware(jwtKeyRepo))
 	{
-		open.GET("/me", authController.Me)
-		open.POST("/logout", authController.Logout)
+		auth.GET("/profile", authController.Profile)
+		auth.POST("/logout", authController.Logout)
 	}
 
+	//  Non-rate-limited routes (cron / internal)
 	ping := router.Group("/ping")
 	ping.GET("", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})

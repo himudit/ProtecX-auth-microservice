@@ -44,10 +44,6 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-type LogoutRequest struct {
-	AccessToken string `json:"accessToken"`
-}
-
 func (ac *AuthController) Register(c *gin.Context) {
 	ctx := c.Request.Context()
 	projectID := c.GetString(middlewares.ContextProjectID)
@@ -84,7 +80,6 @@ func (ac *AuthController) Register(c *gin.Context) {
 
 	// Return user info and JWT tokens
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Signed up successfully",
 		"user":         user,
 		"accessToken":  tokens["accessToken"],
 		"refreshToken": tokens["refreshToken"],
@@ -124,7 +119,6 @@ func (ac *AuthController) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Loged in successfully",
 		"user":         user,
 		"accessToken":  tokens["accessToken"],
 		"refreshToken": tokens["refreshToken"],
@@ -156,26 +150,46 @@ func (ac *AuthController) AccessRefreshToken(c *gin.Context) {
 func (ac *AuthController) Logout(c *gin.Context) {
 	ctx := c.Request.Context()
 	projectID := c.GetString(middlewares.ContextProjectID)
+	userID := c.GetString("userId")
+	tokenVersion := c.GetInt("tokenVersion")
 
-	var payload LogoutRequest
-	if err := c.ShouldBindJSON(&payload); err != nil || payload.AccessToken == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "accessToken required in body"})
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
 
-	err := ac.authService.LogoutUser(ctx, projectID, payload.AccessToken)
+	err := ac.authService.LogoutUser(ctx, projectID, userID, tokenVersion)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (ac *AuthController) Profile(c *gin.Context) {
+	ctx := c.Request.Context()
+	projectID := c.GetString(middlewares.ContextProjectID)
+	userID := c.GetString("userId")
+	tokenVersion := c.GetInt("tokenVersion")
+
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	user, err := ac.authService.GetUserProfile(ctx, projectID, userID, tokenVersion)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out successfully",
-	})
-}
-
-func (ac *AuthController) Me(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"message": "hello from 8080",
+		"user": user,
 	})
 }
