@@ -19,13 +19,13 @@ func ValidationErrors(err error) map[string]string {
 
 		switch fe.Tag() {
 		case "required":
-			out[field] = "is required"
+			out[field] = field + " is required"
 		case "email":
-			out[field] = "must be a valid email"
+			out[field] = field + " must be a valid"
 		case "min":
-			out[field] = "must be at least " + fe.Param() + " characters"
+			out[field] = field + " must be at least " + fe.Param() + " characters"
 		default:
-			out[field] = "is invalid"
+			out[field] = field + " is invalid"
 		}
 	}
 
