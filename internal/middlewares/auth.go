@@ -45,7 +45,7 @@ func AuthMiddleware(jwtKeyRepo repositories.ProjectJwtKeyRepository) gin.Handler
 			return
 		}
 
-		claims, err := utils.VerifyAccessToken(tokenString, publicKey)
+		claims, err := utils.VerifyRefreshToken(tokenString, publicKey)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
