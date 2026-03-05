@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"authService/internal/domain"
@@ -177,9 +178,14 @@ func (s *AuthService) LoginUser(ctx context.Context, req LoginRequest,
 		"refreshToken": refreshToken,
 	}
 
-	if err := s.projectUserRepo.UpdateLastLoginAt(ctx, projectID, user.ID); err != nil {
-		return nil, nil, err
-	}
+	go func() {
+		ctx := context.Background()
+		err := s.projectUserRepo.UpdateLastLoginAt(ctx, projectID, user.ID)
+		if err != nil {
+			log.Printf("failed to update last login: %v", err)
+		}
+	}()
+
 	now := time.Now()
 	user.LastLoginAt = &now
 
