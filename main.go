@@ -3,44 +3,73 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"os"
 
 	"github.com/joho/godotenv"
 
 	"authService/config"
-	"authService/internal/controllers"
+
+	"google.golang.org/grpc"
+
+	handlers "authService/internal/grpc"
+	"authService/internal/grpc/interceptors"
 	"authService/internal/repositories/postgres"
-	"authService/internal/routes"
 	"authService/internal/services"
 
-	"github.com/gin-gonic/gin"
+	authv1 "authService/proto/proto/iam/v1"
 )
 
 func main() {
-	// Load environment variables from .env only in development
+
 	ctx := context.Background()
+
 	if os.Getenv("ENV") != "production" {
 		if err := godotenv.Load(); err != nil {
 			log.Println("⚠️ No .env file found, using system environment")
 		}
 	}
 
+	// infra
 	config.ConnectRedis()
 	db := config.New(ctx)
-	// models.InitCollections()
 	config.LoadRSAKeys()
 
-	r := gin.Default()
-
+	// repositories
 	projectUserRepo := postgres.NewProjectUserRepository(db.Pool)
 	projectJWTRepo := postgres.NewProjectJwtKeyRepository(db.Pool)
 
-	authService := services.NewAuthService(projectUserRepo, projectJWTRepo)
+	// services
+	authService := services.NewAuthService(projectUserRepo, projectJWTRepo, config.RDB)
 
-	authController := controllers.NewAuthController(config.RDB, authService)
+	// handler
+	authHandler := handlers.NewAuthHandler(authService)
 
-	routes.AuthRoutes(r, authController, projectJWTRepo)
+	// grpc server
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			interceptors.ProjectContextInterceptor(),
+			interceptors.RateLimiterInterceptor(config.RDB),
+			interceptors.AuthInterceptor(projectJWTRepo),
+		),
+	)
 
-	log.Println("🚀 Server running on :8080")
-	r.Run(":8080")
+	// register service
+	authv1.RegisterAuthServiceServer(grpcServer, authHandler)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	lis, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("❌ Failed to listen: %v", err)
+	}
+
+	log.Printf("🚀 gRPC server running on :%s", port)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("❌ Failed to serve: %v", err)
+	}
 }
