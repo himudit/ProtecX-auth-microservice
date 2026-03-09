@@ -8,6 +8,7 @@
 *.dylib
 main
 main.exe
+__debug_bin*
 
 # Go build cache
 /build
