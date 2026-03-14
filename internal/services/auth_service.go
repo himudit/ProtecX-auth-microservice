@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AuthService struct {
@@ -109,9 +109,9 @@ func (s *AuthService) RegisterUser(
 		return nil, err
 	}
 
-	var lastLogin *timestamppb.Timestamp
+	lastLoginStr := ""
 	if user.LastLoginAt != nil {
-		lastLogin = timestamppb.New(*user.LastLoginAt)
+		lastLoginStr = user.LastLoginAt.Format("2006-01-02T15:04:05.0000000-07:00")
 	}
 
 	go func() {
@@ -131,7 +131,7 @@ func (s *AuthService) RegisterUser(
 			Email:       user.Email,
 			Role:        mapDomainRoleToProto(user.Role),
 			IsVerified:  user.IsVerified,
-			LastLoginAt: lastLogin,
+			LastLoginAt: lastLoginStr,
 		},
 	}, nil
 }
@@ -149,209 +149,227 @@ func mapDomainRoleToProto(role domain.ProjectRole) authv1.ProjectRole {
 	}
 }
 
-// func (s *AuthService) Login(
-// 	ctx context.Context,
-// 	req *authv1.LoginRequest,
-// ) (*authv1.LoginResponse, error) {
+func (s *AuthService) LoginUser(
+	ctx context.Context,
+	req *authv1.LoginRequest,
+) (*authv1.LoginResponse, error) {
 
-// 	projectID := ctx.Value(interceptors.ContextProjectID).(string)
+	projectID := ctx.Value(interceptors.ContextProjectID).(string)
 
-// 	status, remainingTime, err := utils.CheckBackoff(projectID, req.Email, s.rdb)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	status, remainingTime, err := utils.CheckBackoff(projectID, req.Email, s.rdb)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if status == "blocked" {
-// 		return nil, fmt.Errorf("too many login attempts, try again in %s", remainingTime)
-// 	}
+	if status == "blocked" {
+		return nil, fmt.Errorf("too many login attempts, try again in %s", remainingTime)
+	}
 
-// 	user, err := s.projectUserRepo.GetUserByEmail(ctx, projectID, req.Email)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	user, err := s.projectUserRepo.GetUserByEmail(ctx, projectID, req.Email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		utils.UpdateBackoff(projectID, req.Email, s.rdb)
+		return nil, errors.New("invalid email or password")
+	}
 
-// 	if user == nil {
-// 		utils.UpdateBackoff(projectID, req.Email, s.rdb)
-// 		return nil, errors.New("invalid email or password")
-// 	}
+	valid, err := utils.VerifyPassword(user.PasswordHash, req.Password)
+	if err != nil {
+		return nil, err
+	}
 
-// 	valid, err := utils.VerifyPassword(user.PasswordHash, req.Password)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	if !valid {
+		utils.UpdateBackoff(projectID, req.Email, s.rdb)
+		return nil, errors.New("invalid email or password")
+	}
 
-// 	if !valid {
-// 		utils.UpdateBackoff(projectID, req.Email, s.rdb)
-// 		return nil, errors.New("invalid email or password")
-// 	}
+	utils.ResetBackoff(projectID, req.Email, s.rdb)
 
-// 	utils.ResetBackoff(projectID, req.Email, s.rdb)
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, err
+	}
 
-// 	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	accessToken, err := utils.GenerateAccessToken(
+		user.ID,
+		user.Email,
+		string(user.Role),
+		user.TokenVersion,
+		privateKeyPEM,
+	)
 
-// 	accessToken, err := utils.GenerateAccessToken(
-// 		user.ID,
-// 		user.Email,
-// 		string(user.Role),
-// 		user.TokenVersion,
-// 		privateKeyPEM,
-// 	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	refreshToken, err := utils.GenerateRefreshToken(
+		user.ID,
+		user.TokenVersion,
+		privateKeyPEM,
+	)
 
-// 	refreshToken, err := utils.GenerateRefreshToken(
-// 		user.ID,
-// 		user.TokenVersion,
-// 		privateKeyPEM,
-// 	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Set LastLoginAt to now and update DB asynchronously
+	now := time.Now()
+	user.LastLoginAt = &now
 
-// 	go func() {
-// 		ctx := context.Background()
-// 		err := s.projectUserRepo.UpdateLastLoginAt(ctx, projectID, user.ID)
-// 		if err != nil {
-// 			log.Printf("failed to update last login: %v", err)
-// 		}
-// 	}()
+	go func() {
+		ctx := context.Background()
+		err := s.projectUserRepo.UpdateLastLoginAt(ctx, projectID, user.ID)
+		if err != nil {
+			log.Printf("failed to update last login: %v", err)
+		}
+	}()
 
-// 	return &authv1.LoginResponse{
-// 		AccessToken:  accessToken,
-// 		RefreshToken: refreshToken,
-// 	}, nil
-// }
+	lastLoginStr := ""
+	if user.LastLoginAt != nil {
+		lastLoginStr = user.LastLoginAt.Format("2006-01-02T15:04:05.0000000-07:00")
+	}
 
-// func (s *AuthService) AccessRefreshToken(
-// 	ctx context.Context,
-// 	req *authv1.AccessRefreshTokenRequest,
-// ) (*authv1.AccessRefreshTokenResponse, error) {
+	return &authv1.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		User: &authv1.User{
+			Id:          user.ID,
+			Name:        user.Name,
+			Email:       user.Email,
+			Role:        mapDomainRoleToProto(user.Role),
+			IsVerified:  user.IsVerified,
+			LastLoginAt: lastLoginStr,
+		},
+	}, nil
+}
 
-// 	projectID := ctx.Value(interceptors.ContextProjectID).(string)
+func (s *AuthService) RefreshSession(
+	ctx context.Context,
+	req *authv1.RefreshSessionRequest,
+) (*authv1.RefreshSessionResponse, error) {
 
-// 	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	projectID := ctx.Value(interceptors.ContextProjectID).(string)
 
-// 	publicKey, err := utils.ParseRSAPublicKeyFromPEM(keyRow.PublicKey)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	keyRow, err := s.jwtKeyRepo.GetActiveKeyByProjectID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	claims, err := utils.VerifyRefreshToken(req.RefreshToken, publicKey)
-// 	if err != nil {
-// 		return nil, errors.New("invalid refresh token")
-// 	}
+	publicKey, err := utils.ParseRSAPublicKeyFromPEM(keyRow.PublicKey)
+	if err != nil {
+		return nil, err
+	}
 
-// 	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, claims.UserID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	claims, err := utils.VerifyRefreshToken(req.RefreshToken, publicKey)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
 
-// 	if user == nil {
-// 		return nil, errors.New("user not found")
-// 	}
+	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if claims.TokenVersion != user.TokenVersion {
-// 		return nil, errors.New("refresh token expired or revoked")
-// 	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
 
-// 	err = s.projectUserRepo.IncrementTokenVersion(ctx, projectID, user.ID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	if claims.TokenVersion != user.TokenVersion {
+		return nil, errors.New("refresh token expired or revoked")
+	}
 
-// 	newTokenVersion := user.TokenVersion + 1
+	err = s.projectUserRepo.IncrementTokenVersion(ctx, projectID, user.ID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	newTokenVersion := user.TokenVersion + 1
 
-// 	newAccessToken, err := utils.GenerateAccessToken(
-// 		user.ID,
-// 		user.Email,
-// 		string(user.Role),
-// 		newTokenVersion,
-// 		privateKeyPEM,
-// 	)
+	privateKeyPEM, err := utils.DecryptAES256GCM(keyRow.PrivateKeyEncrypted)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	newAccessToken, err := utils.GenerateAccessToken(
+		user.ID,
+		user.Email,
+		string(user.Role),
+		newTokenVersion,
+		privateKeyPEM,
+	)
 
-// 	newRefreshToken, err := utils.GenerateRefreshToken(
-// 		user.ID,
-// 		newTokenVersion,
-// 		privateKeyPEM,
-// 	)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	newRefreshToken, err := utils.GenerateRefreshToken(
+		user.ID,
+		newTokenVersion,
+		privateKeyPEM,
+	)
 
-// 	return &authv1.AccessRefreshTokenResponse{
-// 		AccessToken:  newAccessToken,
-// 		RefreshToken: newRefreshToken,
-// 	}, nil
-// }
+	if err != nil {
+		return nil, err
+	}
 
-// func (s *AuthService) Profile(
-// 	ctx context.Context,
-// 	req *authv1.ProfileRequest,
-// ) (*authv1.ProfileResponse, error) {
+	return &authv1.RefreshSessionResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
+	}, nil
+}
 
-// 	projectID := ctx.Value(interceptors.ContextProjectID).(string)
-// 	userID := ctx.Value(interceptors.ContextUserID).(string)
-// 	tokenVersion := ctx.Value(interceptors.ContextTokenVersion).(int)
+func (s *AuthService) GetProfile(
+	ctx context.Context,
+	req *authv1.GetProfileRequest,
+) (*authv1.GetProfileResponse, error) {
 
-// 	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, userID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	projectID := ctx.Value(interceptors.ContextProjectID).(string)
+	userID := ctx.Value(interceptors.ContextUserID).(string)
+	tokenVersion := ctx.Value(interceptors.ContextTokenVersion).(int)
 
-// 	if user == nil {
-// 		return nil, errors.New("user not found")
-// 	}
+	user, err := s.projectUserRepo.GetUserByID(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if user.TokenVersion != tokenVersion {
-// 		return nil, errors.New("token expired or revoked")
-// 	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
 
-// 	return &authv1.ProfileResponse{
-// 		Id:    user.ID,
-// 		Name:  user.Name,
-// 		Email: user.Email,
-// 		Role:  string(user.Role),
-// 	}, nil
-// }
+	if user.TokenVersion != tokenVersion {
+		return nil, errors.New("token expired or revoked")
+	}
 
-// func (s *AuthService) Logout(
-// 	ctx context.Context,
-// 	req *authv1.LogoutRequest,
-// ) (*authv1.LogoutResponse, error) {
+	return &authv1.GetProfileResponse{
+		User: &authv1.User{
+			Id:          user.ID,
+			Name:        user.Name,
+			Email:       user.Email,
+			Role:        mapDomainRoleToProto(user.Role),
+			IsVerified:  user.IsVerified,
+			LastLoginAt: user.LastLoginAt.Format("2006-01-02T15:04:05.0000000-07:00"),
+		},
+	}, nil
+}
 
-// 	projectID := ctx.Value(interceptors.ContextProjectID).(string)
-// 	userID := ctx.Value(interceptors.ContextUserID).(string)
+func (s *AuthService) Logout(
+	ctx context.Context,
+	req *authv1.LogoutRequest,
+) (*authv1.LogoutResponse, error) {
 
-// 	err := s.projectUserRepo.IncrementTokenVersion(ctx, projectID, userID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	projectID := ctx.Value(interceptors.ContextProjectID).(string)
+	userID := ctx.Value(interceptors.ContextUserID).(string)
 
-// 	return &authv1.LogoutResponse{
-// 		Message: "logged out successfully",
-// 	}, nil
-// }
+	err := s.projectUserRepo.IncrementTokenVersion(ctx, projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
