@@ -43,7 +43,7 @@ func RateLimiter(rdb *redis.Client) gin.HandlerFunc {
 
 		if err != nil || len(val) == 0 {
 			data = RateLimiterData{
-				Tokens:       10, // max tokens
+				Tokens:       3, // max tokens
 				LastRefillTs: time.Now().Unix(),
 			}
 		} else {
@@ -52,11 +52,11 @@ func RateLimiter(rdb *redis.Client) gin.HandlerFunc {
 		}
 
 		currentTime := time.Now().Unix()
-		newTokens := float64(currentTime-data.LastRefillTs) / 6.0
+		newTokens := float64(currentTime-data.LastRefillTs) / 3.0
 		if newTokens > 0 {
 			data.Tokens += newTokens
-			if data.Tokens > 10 { // cap tokens
-				data.Tokens = 10
+			if data.Tokens > 3 { // cap tokens
+				data.Tokens = 3
 			}
 		}
 
